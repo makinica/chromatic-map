@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>クロマチック音マップ</title>
+  <style>
+    body { margin: 0; font-family: sans-serif; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      grid-template-rows: repeat(4, 60px);
+      width: 100vw;
+      height: 100vh;
+    }
+    .cell {
+      border: 1px solid #ccc;
+      touch-action: manipulation;
+    }
+    .row0 { background-color: #f0f8ff; } /* 吹き音 */
+    .row1 { background-color: #e0f0ff; } /* スライド吹き */
+    .row2 { background-color: #ffe0e0; } /* 吸い音 */
+    .row3 { background-color: #ffd8d8; } /* スライド吸い */
+    .thick { border-left: 3px solid #333; }
+  </style>
+</head>
+<body>
+  <div class="grid" id="grid"></div>
+
+  <script>
+    const noteMap = [
+      ["C4", "E4", "G4", "C5", "C5", "E5", "G5", "C6", "C6", "E6", "G6", "C7"],
+      ["C#4", "F4", "G#4", "C#5", "C#5", "F5", "G#5", "C#6", "C#6", "F6", "G#6", "C#7"],
+      ["D4", "F4", "A4", "B4", "D5", "F5", "A5", "B5", "D6", "F6", "A6", "B6"],
+      ["D#4", "F#4", "A#4", "C5", "D#5", "F#5", "A#5", "C6", "D#6", "F#6", "A#6", "D7"]
+    ];
+
+    const noteToFreq = note => {
+      const A4 = 440;
+      const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+      const name = note.replace(/[0-9]/g, '');
+      const octave = parseInt(note.replace(/[^0-9]/g, ''), 10);
+      const n = notes.indexOf(name);
+      const keyNumber = n + (octave * 12);
+      return A4 * Math.pow(2, (keyNumber - 69) / 12);
+    };
+
+    const playNote = (note) => {
+      const freq = noteToFreq(note);
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.4);
+    };
+
+    const grid = document.getElementById("grid");
+    for (let row = 0; row < 4; row++) {
+      for (let col = 0; col < 12; col++) {
+        const cell = document.createElement("div");
+        cell.className = `cell row${row}` + (col % 4 === 0 ? " thick" : "");
+        cell.addEventListener("click", () => playNote(noteMap[row][col]));
+        grid.appendChild(cell);
+      }
+    }
+  </script>
+</body>
+</html>
