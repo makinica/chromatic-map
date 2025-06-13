@@ -1,71 +1,187 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <title>クロマチック音マップ</title>
+  <meta charset="UTF-8" />
+  <title>Chromatic Map</title>
   <style>
-    body { margin: 0; font-family: sans-serif; }
+    :root {
+      --row0-bg: #ffffff;
+      --row0-color: #000000;
+      --row1-bg: #000000;
+      --row1-color: #ffffff;
+      --row2-bg: #87ceeb;
+      --row2-color: #000000;
+      --row3-bg: #000000;
+      --row3-color: #87ceeb;
+      --border: #888;
+    }
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      background-color: #e0f7fa;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      padding: 12px 0;
+    }
+    .title-text {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 36px; /* 2x larger */
+      color: #333;
+    }
+    .harmonica-pic {
+      width: 240px; /* 2x larger */
+      height: auto;
+      image-rendering: pixelated;
+    }
     .grid {
+      margin: 0 auto;
+      width: calc(100vw - 30px);
+      max-width: 800px;
       display: grid;
       grid-template-columns: repeat(12, 1fr);
-      grid-template-rows: repeat(4, 60px);
-      width: 100vw;
-      height: 100vh;
+      grid-template-rows: repeat(4, 70px);
     }
     .cell {
-      border: 1px solid #ccc;
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: clamp(24px, 6vw, 33px);
+      font-family: "Helvetica Neue", "Segoe UI", "Rounded Mplus 1c", "Hiragino Maru Gothic ProN", sans-serif;
+      user-select: none;
       touch-action: manipulation;
+      transition: transform 0.05s ease, box-shadow 0.05s ease;
     }
-    .row0 { background-color: #f0f8ff; } /* 吹き音 */
-    .row1 { background-color: #e0f0ff; } /* スライド吹き */
-    .row2 { background-color: #ffe0e0; } /* 吸い音 */
-    .row3 { background-color: #ffd8d8; } /* スライド吸い */
-    .thick { border-left: 3px solid #333; }
+    .cell.active {
+      transform: scale(0.92);
+      box-shadow: inset 0 2px 6px rgba(0,0,0,0.4);
+    }
+    .row0 { background: var(--row0-bg); color: var(--row0-color); }
+    .row1 { background: var(--row1-bg); color: var(--row1-color); }
+    .row2 { background: var(--row2-bg); color: var(--row2-color); }
+    .row3 { background: var(--row3-bg); color: var(--row3-color); }
+    .thick { border-left: 3px solid var(--border); }
+    .controls {
+      text-align: center;
+      margin: 14px;
+      font-size: 18px;
+    }
+    .button {
+      margin: 0 10px;
+      padding: 8px 24px; /* doubled padding */
+      font-size: 36px; /* doubled font size */
+      font-family: 'Press Start 2P', monospace; /* dot font */
+    }
   </style>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 </head>
 <body>
-  <div class="grid" id="grid"></div>
+  <div class="header">
+    <div class="title-text">Oto-map Touch</div>
+    <!-- ドット絵ハーモニカ -->
+    <img class="harmonica-pic" src="chrom.png" alt="harmonica">
+  </div>
+  <div id="grid" class="grid"></div>
+  <div class="controls">
+    <!-- ボタンラベルを # と b のみのドット文字に変更 -->
+    <button class="button" onclick="setMode('sharp')">#</button>
+    <button class="button" onclick="setMode('flat')">b</button>
+  </div>
 
   <script>
-    const noteMap = [
-      ["C4", "E4", "G4", "C5", "C5", "E5", "G5", "C6", "C6", "E6", "G6", "C7"],
-      ["C#4", "F4", "G#4", "C#5", "C#5", "F5", "G#5", "C#6", "C#6", "F6", "G#6", "C#7"],
-      ["D4", "F4", "A4", "B4", "D5", "F5", "A5", "B5", "D6", "F6", "A6", "B6"],
-      ["D#4", "F#4", "A#4", "C5", "D#5", "F#5", "A#5", "C6", "D#6", "F#6", "A#6", "D7"]
+    let currentMode = 'sharp';
+    const sharpNotes = [
+      ["C4","E4","G4","C5","C5","E5","G5","C6","C6","E6","G6","C7"],
+      ["C#4","F4","G#4","C#5","C#5","F5","G#5","C#6","C#6","F6","G#6","C#7"],
+      ["D4","F4","A4","B4","D5","F5","A5","B5","D6","F6","A6","B6"],
+      ["D#4","F#4","A#4","C5","D#5","F#5","A#5","C6","D#6","F#6","A#6","D7"]
     ];
 
-    const noteToFreq = note => {
-      const A4 = 440;
-      const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-      const name = note.replace(/[0-9]/g, '');
-      const octave = parseInt(note.replace(/[^0-9]/g, ''), 10);
-      const n = notes.indexOf(name);
-      const keyNumber = n + (octave * 12);
-      return A4 * Math.pow(2, (keyNumber - 69) / 12);
-    };
+    const flatNotes = [
+      ["C4","E4","G4","C5","C5","E5","G5","C6","C6","E6","G6","C7"],
+      ["Db4","F4","Ab4","Db5","Db5","F5","Ab5","Db6","Db6","F6","Ab6","Db7"],
+      ["D4","F4","A4","B4","D5","F5","A5","B5","D6","F6","A6","B6"],
+      ["Eb4","Gb4","Bb4","C5","Eb5","Gb5","Bb5","C6","Eb6","Gb6","Bb6","D7"]
+    ];
 
-    const playNote = (note) => {
-      const freq = noteToFreq(note);
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const activeOsc = {};
+
+    function freq(note){
+      const A4 = 440, semis = {
+        'C':0,'C#':1,'Db':1,'D':2,'D#':3,'Eb':3,'E':4,'F':5,'F#':6,'Gb':6,
+        'G':7,'G#':8,'Ab':8,'A':9,'A#':10,'Bb':10,'B':11
+      };
+      const name = note.replace(/[0-9]/g, '');
+      const oct = +note.replace(/[^0-9]/g, '');
+      return A4 * 2 ** ((semis[name] + (oct - 4) * 12 - 9) / 12);
+    }
+
+    function startNote(note, div) {
+      if (activeOsc[note]) return;
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.value = freq;
-      osc.connect(gain);
-      gain.connect(ctx.destination);
+      osc.type = "square";  // 音色をスクエアに設定
+      osc.frequency.value = freq(note);
+      gain.gain.setValueAtTime(1, ctx.currentTime);
+      osc.connect(gain).connect(ctx.destination);
       osc.start();
-      osc.stop(ctx.currentTime + 0.4);
-    };
+      activeOsc[note] = { osc, gain };
+      div.classList.add("active");
+    }
+
+    function stopNote(note, div) {
+      const pair = activeOsc[note];
+      if (!pair) return;
+      const { osc, gain } = pair;
+      gain.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.02);
+      osc.stop(ctx.currentTime + 0.05);
+      delete activeOsc[note];
+      div.classList.remove("active");
+    }
 
     const grid = document.getElementById("grid");
-    for (let row = 0; row < 4; row++) {
-      for (let col = 0; col < 12; col++) {
-        const cell = document.createElement("div");
-        cell.className = `cell row${row}` + (col % 4 === 0 ? " thick" : "");
-        cell.addEventListener("click", () => playNote(noteMap[row][col]));
-        grid.appendChild(cell);
-      }
+
+    function renderGrid() {
+      grid.innerHTML = "";
+      const notes = currentMode === 'sharp' ? sharpNotes : flatNotes;
+
+      notes.forEach((rowArr, row) => {
+        rowArr.forEach((note, col) => {
+          const div = document.createElement("div");
+          div.className = `cell row${row}` + (col % 4 === 0 ? " thick" : "");
+          div.textContent = note.replace(/[0-9]/g, '');
+
+          const start = () => startNote(note, div);
+          const stop = () => stopNote(note, div);
+
+          div.addEventListener("mousedown", start);
+          div.addEventListener("mouseup", stop);
+          div.addEventListener("mouseleave", stop);
+
+          div.addEventListener("touchstart", e => {
+            e.preventDefault(); start();
+          }, { passive: false });
+
+          div.addEventListener("touchend", stop);
+          div.addEventListener("touchcancel", stop);
+
+          grid.appendChild(div);
+        });
+      });
     }
+
+    function setMode(mode) {
+      currentMode = mode;
+      renderGrid();
+    }
+
+    renderGrid();
   </script>
 </body>
 </html>
