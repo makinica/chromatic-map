@@ -29,33 +29,48 @@
     }
     .title-text {
       font-family: 'Press Start 2P', monospace;
-      font-size: 36px; /* 2x larger */
+      font-size: 36px;
       color: #333;
     }
     .harmonica-pic {
-      width: 240px; /* 2x larger */
+      width: 240px;
       height: auto;
       image-rendering: pixelated;
     }
-    .grid {
+    .map-container {
       margin: 0 auto;
       width: calc(100vw - 30px);
       max-width: 800px;
+      position: relative;
+    }
+    .grid {
       display: grid;
       grid-template-columns: repeat(12, 1fr);
       grid-template-rows: repeat(4, 70px);
     }
     .cell {
+      position: relative;
       border: 1px solid var(--border);
       display: flex;
-      align-items: center;
-      justify-content: center;
+      align-items: flex-start;
+      justify-content: flex-start;
+      padding: 6px;
       font-weight: bold;
-      font-size: clamp(24px, 6vw, 33px);
-      font-family: "Helvetica Neue", "Segoe UI", "Rounded Mplus 1c", "Hiragino Maru Gothic ProN", sans-serif;
+      font-size: clamp(24px, 3vw, 16px);
+      font-family: sans-serif;
       user-select: none;
       touch-action: manipulation;
       transition: transform 0.05s ease, box-shadow 0.05s ease;
+    }
+    .cell .degree {
+      position: absolute;
+      bottom: 4px;
+      right: 4px;
+      font-size: clamp(24px, 3vw, 16px);
+      font-family: sans-serif;
+    }
+    .cell .degree.tonic {
+      color: red;
     }
     .cell.active {
       transform: scale(0.92);
@@ -67,78 +82,105 @@
     .row3 { background: var(--row3-bg); color: var(--row3-color); }
     .thick { border-left: 3px solid var(--border); }
     .controls {
-      text-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
       margin: 14px;
-      font-size: 18px;
     }
     .button {
-      margin: 0 10px;
-      padding: 8px 24px; /* doubled padding */
-      font-size: 36px; /* doubled font size */
-      font-family: 'Press Start 2P', monospace; /* dot font */
+      padding: 8px 24px;
+      font-size: 18px;
+      font-family: 'Press Start 2P', monospace;
+      font-weight: bold;
+    }
+    .key-label {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 16px;
+      color: #333;
+      white-space: nowrap;
     }
   </style>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 </head>
 <body>
+
   <div class="header">
     <div class="title-text">Oto-map Touch</div>
-    <!-- ドット絵ハーモニカ -->
     <img class="harmonica-pic" src="chrom.png" alt="harmonica">
   </div>
-  <div id="grid" class="grid"></div>
+
+  <div class="map-container">
+    <div id="grid" class="grid"></div>
+  </div>
+
   <div class="controls">
-    <!-- ボタンラベルを # と b のみのドット文字に変更 -->
-    <button class="button" onclick="setMode('sharp')">#</button>
-    <button class="button" onclick="setMode('flat')">b</button>
+    <div id="keyLabel" class="key-label"></div>
+    <button class="button" onclick="prevKey()">◀</button>
+    <button class="button" onclick="nextKey()">▶</button>
   </div>
 
   <script>
-    let currentMode = 'sharp';
-    const sharpNotes = [
+    let currentKeyIndex = 0;
+    const keys = ["C","G","D","A","E","B","F#","F","Bb","Eb","Ab","Db"];
+    const useSharps = ["C","G","D","A","E","B","F#"];
+    const scales = {
+      "C":["C","D","E","F","G","A","B"],
+      "G":["G","A","B","C","D","E","F#"],
+      "D":["D","E","F#","G","A","B","C#"],
+      "A":["A","B","C#","D","E","F#","G#"],
+      "E":["E","F#","G#","A","B","C#","D#"],
+      "B":["B","C#","D#","E","F#","G#","A#"],
+      "F#":["F#","G#","A#","B","C#","D#","E#"],
+      "F":["F","G","A","Bb","C","D","E"],
+      "Bb":["Bb","C","D","Eb","F","G","A"],
+      "Eb":["Eb","F","G","Ab","Bb","C","D"],
+      "Ab":["Ab","Bb","C","Db","Eb","F","G"],
+      "Db":["Db","Eb","F","Gb","Ab","Bb","C"]
+    };
+    const enharmonic = {
+      "C#":"Db","D#":"Eb","F#":"Gb",
+      "G#":"Ab","A#":"Bb",
+      "E#":"F","B#":"C"
+    };
+    const notes = [
       ["C4","E4","G4","C5","C5","E5","G5","C6","C6","E6","G6","C7"],
       ["C#4","F4","G#4","C#5","C#5","F5","G#5","C#6","C#6","F6","G#6","C#7"],
       ["D4","F4","A4","B4","D5","F5","A5","B5","D6","F6","A6","B6"],
       ["D#4","F#4","A#4","C5","D#5","F#5","A#5","C6","D#6","F#6","A#6","D7"]
     ];
-
-    const flatNotes = [
-      ["C4","E4","G4","C5","C5","E5","G5","C6","C6","E6","G6","C7"],
-      ["Db4","F4","Ab4","Db5","Db5","F5","Ab5","Db6","Db6","F6","Ab6","Db7"],
-      ["D4","F4","A4","B4","D5","F5","A5","B5","D6","F6","A6","B6"],
-      ["Eb4","Gb4","Bb4","C5","Eb5","Gb5","Bb5","C6","Eb6","Gb6","Bb6","D7"]
-    ];
-
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
     const activeOsc = {};
 
     function freq(note){
-      const A4 = 440, semis = {
-        'C':0,'C#':1,'Db':1,'D':2,'D#':3,'Eb':3,'E':4,'F':5,'F#':6,'Gb':6,
-        'G':7,'G#':8,'Ab':8,'A':9,'A#':10,'Bb':10,'B':11
+      const A4 = 440;
+      const semis = {
+        'C':0,'C#':1,'Db':1,'D':2,'D#':3,'Eb':3,'E':4,
+        'F':5,'F#':6,'Gb':6,'G':7,'G#':8,'Ab':8,'A':9,
+        'A#':10,'Bb':10,'B':11,'E#':5
       };
-      const name = note.replace(/[0-9]/g, '');
-      const oct = +note.replace(/[^0-9]/g, '');
-      return A4 * 2 ** ((semis[name] + (oct - 4) * 12 - 9) / 12);
+      const name = note.replace(/[0-9]/g,'');
+      const oct  = +note.replace(/[^0-9]/g,'');
+      return A4 * 2**((semis[name] + (oct-4)*12 - 9)/12);
     }
 
-    function startNote(note, div) {
-      if (activeOsc[note]) return;
-      const osc = ctx.createOscillator();
+    function startNote(note, div){
+      if(activeOsc[note]) return;
+      const osc  = ctx.createOscillator();
       const gain = ctx.createGain();
-      osc.type = "square";  // 音色をスクエアに設定
+      osc.type = "square";
       osc.frequency.value = freq(note);
       gain.gain.setValueAtTime(1, ctx.currentTime);
       osc.connect(gain).connect(ctx.destination);
       osc.start();
-      activeOsc[note] = { osc, gain };
+      activeOsc[note] = {osc,gain};
       div.classList.add("active");
     }
 
-    function stopNote(note, div) {
+    function stopNote(note, div){
       const pair = activeOsc[note];
-      if (!pair) return;
-      const { osc, gain } = pair;
+      if(!pair) return;
+      const {osc,gain} = pair;
       gain.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.02);
       osc.stop(ctx.currentTime + 0.05);
       delete activeOsc[note];
@@ -146,38 +188,68 @@
     }
 
     const grid = document.getElementById("grid");
+    const keyLabel = document.getElementById("keyLabel");
 
-    function renderGrid() {
+    function renderGrid(){
       grid.innerHTML = "";
-      const notes = currentMode === 'sharp' ? sharpNotes : flatNotes;
+      const key = keys[currentKeyIndex];
+      keyLabel.textContent = `Key: ${key}`;
+      const mode = useSharps.includes(key) ? 'sharp' : 'flat';
+      const scale = scales[key];
 
-      notes.forEach((rowArr, row) => {
-        rowArr.forEach((note, col) => {
+      notes.forEach((rowArr, row)=>{
+        rowArr.forEach((note, col)=>{
           const div = document.createElement("div");
           div.className = `cell row${row}` + (col % 4 === 0 ? " thick" : "");
-          div.textContent = note.replace(/[0-9]/g, '');
 
-          const start = () => startNote(note, div);
-          const stop = () => stopNote(note, div);
+          // 生の音名
+          const raw = note.replace(/[0-9]/g,'');
+          // 表示用（flat のときは変換）
+          const base = (mode === 'flat' && enharmonic[raw]) ? enharmonic[raw] : raw;
 
-          div.addEventListener("mousedown", start);
-          div.addEventListener("mouseup", stop);
-          div.addEventListener("mouseleave", stop);
+          // 音名
+          const text = document.createElement("div");
+          text.textContent = base;
+          div.appendChild(text);
 
-          div.addEventListener("touchstart", e => {
-            e.preventDefault(); start();
-          }, { passive: false });
+          // 非表示セルの判定
+          const hide = 
+            (row === 0 && (col === 3 || col === 7)) ||           // 1段目 4,8列
+            (row === 1 && [1,3,5,7,9].includes(col)) ||         // 2段目 2,4,6,8,10列
+            (row === 3 && (col === 3 || col === 7));            // 4段目 4,8列
 
-          div.addEventListener("touchend", stop);
-          div.addEventListener("touchcancel", stop);
+          // 度数（数字）
+          const idx = scale.indexOf(base);
+          if (idx !== -1 && !hide) {
+            const deg = document.createElement("div");
+            deg.className = "degree";
+            deg.textContent = idx + 1;
+            if (idx === 0) deg.classList.add("tonic");
+            div.appendChild(deg);
+          }
+
+          // イベント設定
+          ['mousedown','touchstart'].forEach(evt=>{
+            div.addEventListener(evt, e=>{
+              e.preventDefault();
+              startNote(note, div);
+            }, {passive:false});
+          });
+          ['mouseup','mouseleave','touchend','touchcancel'].forEach(evt=>{
+            div.addEventListener(evt, ()=> stopNote(note, div));
+          });
 
           grid.appendChild(div);
         });
       });
     }
 
-    function setMode(mode) {
-      currentMode = mode;
+    function nextKey(){
+      currentKeyIndex = (currentKeyIndex + 1) % keys.length;
+      renderGrid();
+    }
+    function prevKey(){
+      currentKeyIndex = (currentKeyIndex - 1 + keys.length) % keys.length;
       renderGrid();
     }
 
